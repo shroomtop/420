@@ -1,0 +1,196 @@
+<!--
+  Shroomtop420™ GitHub Analytics Console v2.0
+  MIT‑Licensed — see LICENSE block below
+-->
+<!DOCTYPE html>
+<html lang="en" class="bg-gray-950 text-white scroll-smooth">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Shroomtop420™ GitHub Analytics Console</title>
+  <meta name="description" content="Colour‑coded repo health dashboard with bulk‑fix tools">
+  <meta name="theme-color" content="#0f172a">
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+  <style> ::selection{background:#00ffe7;color:#111} </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-2 sm:p-4">
+
+  <!-- ───────── TOP BAR ───────────────────────────────────────── -->
+  <header class="w-full max-w-5xl flex flex-col sm:flex-row gap-2 mb-4">
+    <input id="owner" placeholder="github owner/org" value="shroomtop"
+      class="flex-1 rounded px-2 py-1 bg-gray-800 placeholder-gray-500 focus:outline-none">
+    <input id="token" placeholder="PAT (optional for write ops)" type="password"
+      class="flex-1 rounded px-2 py-1 bg-gray-800 placeholder-gray-500 focus:outline-none">
+    <button id="connect"
+      class="btn px-4 py-1 rounded bg-cyan-600 hover:bg-cyan-700 transition">Connect</button>
+    <button id="toggle" class="btn px-4 py-1 rounded bg-yellow-600 hover:bg-yellow-700 hidden">
+      Toggle View
+    </button>
+  </header>
+
+  <!-- ───────── ACTION BAR ────────────────────────────────────── -->
+  <nav id="actions" class="w-full max-w-5xl flex gap-2 mb-4 hidden">
+    <button id="fix" class="btn flex-1 bg-green-600 hover:bg-green-700 rounded">Fix All Selected</button>
+    <button id="csv" class="btn flex-1 bg-indigo-600 hover:bg-indigo-700 rounded">Export CSV</button>
+    <button id="topics" class="btn flex-1 bg-rose-600 hover:bg-rose-700 rounded">Copy Topics ≤50 chars</button>
+  </nav>
+
+  <!-- ───────── REPO VIEWS ────────────────────────────────────── -->
+  <section id="grid" class="grid md:grid-cols-2 lg:grid-cols-3 auto-rows-max gap-2 w-full max-w-5xl"></section>
+
+  <table id="table" class="w-full max-w-5xl text-xs border-collapse hidden">
+    <thead class="sticky top-0 bg-gray-900 text-left">
+      <tr>
+        <th class="p-2">✓</th><th>Repo</th><th>Status</th><th>Missing</th>
+        <th>Stars</th><th>Issues</th><th>Forks</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- ───────── LEGEND ────────────────────────────────────────── -->
+  <footer class="mt-auto pt-6 text-xs text-gray-400">
+    <p><span class="inline-block w-3 h-3 rounded bg-red-600"></span> = Critical</p>
+    <p><span class="inline-block w-3 h-3 rounded bg-yellow-500"></span> = Warning</p>
+    <p><span class="inline-block w-3 h-3 rounded bg-green-600"></span> = Ready</p>
+    <hr class="my-2 border-gray-700">
+    <!-- LICENCE -->
+    <pre class="whitespace-pre-wrap select-all">
+MIT License
+
+Copyright (c) 2025 Shroomtop420™
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+...
+    </pre>
+  </footer>
+
+  <!-- ───────── ES6 LOGIC ─────────────────────────────────────── -->
+  <script type="module">
+/* ===== CONFIG ===== */
+const FILES = ['README.md','.gitignore','LICENSE',
+  '.github/workflows/ci.yml']; // extend as needed
+const MAX_TOPICS_LEN = 50;
+const STATUS = {ok:'green',warn:'yellow',fail:'red'};
+
+/* ===== ELEMENTS ===== */
+const ownerEl  = document.querySelector('#owner');
+const tokenEl  = document.querySelector('#token');
+const connect  = document.querySelector('#connect');
+const toggle   = document.querySelector('#toggle');
+const fixBtn   = document.querySelector('#fix');
+const csvBtn   = document.querySelector('#csv');
+const topicsBtn= document.querySelector('#topics');
+const grid     = document.querySelector('#grid');
+const table    = document.querySelector('#table');
+
+/* ===== STATE ===== */
+let repos = {};     // name → record
+let viewTable = false;
+
+/* ===== UTILS ===== */
+const api = (url, pat)=> fetch(url,{
+  headers: pat ? {Authorization:`token ${pat}`} : {}
+}).then(r=>r.ok?r.json():Promise.reject(r.statusText));
+
+const rawExists = (o,r,f)=> fetch(`https://raw.githubusercontent.com/${o}/${r}/HEAD/${f}`,{method:'HEAD'})
+  .then(r=>r.ok);
+
+const toast = msg => ('termux' in window ? window.termux.toast(msg): alert(msg));
+
+/* ===== MAIN ===== */
+connect.onclick = async ()=>{
+  const owner = ownerEl.value.trim();
+  const pat   = tokenEl.value.trim();
+  if(!owner) return toast('Owner/org required');
+  connect.textContent='Loading…';
+  try{
+    const list = await api(`https://api.github.com/users/${owner}/repos?per_page=100`,pat);
+    repos = {}; grid.innerHTML=''; table.tBodies[0].innerHTML='';
+    await Promise.all(list.map(async repo=>{
+      const missing=[];
+      for(const f of FILES) if(!(await rawExists(owner,repo.name,f))) missing.push(f);
+      const state = missing.length? (missing.length<=2?'warn':'fail') : 'ok';
+      repos[repo.name]={...repo,missing,state};
+      renderCard(repo.name); renderRow(repo.name);
+    }));
+    toggle.classList.remove('hidden');
+    document.querySelector('#actions').classList.remove('hidden');
+  }catch(e){toast('Error: '+e)}
+  connect.textContent='Connect';
+};
+
+toggle.onclick = ()=>{
+  viewTable=!viewTable;
+  grid.classList.toggle('hidden', viewTable);
+  table.classList.toggle('hidden', !viewTable);
+};
+
+function renderCard(name){
+  const r=repos[name];
+  grid.insertAdjacentHTML('beforeend',`
+  <article class="relative p-2 rounded bg-gray-900 ring-2 ring-${STATUS[r.state]}-600">
+    <label class="absolute top-1 right-1">
+      <input type="checkbox" data-name="${name}">
+    </label>
+    <h3 class="font-semibold">${name}</h3>
+    <p class="text-${STATUS[r.state]}-400 capitalize mb-1">${r.state}</p>
+    <ul class="list-disc ml-4 text-xs">
+      ${r.missing.map(m=>`<li>${m}</li>`).join('')||'<li class="opacity-50">none</li>'}
+    </ul>
+  </article>`);
+}
+function renderRow(name){
+  const r=repos[name];
+  table.tBodies[0].insertAdjacentHTML('beforeend',`
+  <tr class="bg-${STATUS[r.state]}-700/60 odd:bg-opacity-50 hover:bg-opacity-80">
+    <td class="p-2 text-center"><input type="checkbox" data-name="${name}"></td>
+    <td>${name}</td>
+    <td class="capitalize">${r.state}</td>
+    <td>${r.missing.join(', ')||'—'}</td>
+    <td>${r.stargazers_count}</td>
+    <td>${r.open_issues_count}</td>
+    <td>${r.forks}</td>
+  </tr>`);
+}
+
+/* ===== BULK FIX (creates stub files via API) ===== */
+fixBtn.onclick = async ()=>{
+  const sel=[...document.querySelectorAll('input[type=checkbox]:checked')]
+    .map(c=>c.dataset.name);
+  if(!sel.length) return toast('Nothing selected');
+  const pat=tokenEl.value.trim();
+  if(!pat) return toast('PAT required for write ops');
+  for(const repo of sel){
+    for(const file of repos[repo].missing){
+      await api(`https://api.github.com/repos/${ownerEl.value}/${repo}/contents/${file}`,pat)
+        .then(()=>toast(`${repo}: ${file} created`))
+        .catch(()=>toast(`${repo}: ${file} failed`));
+    }
+  }
+};
+
+/* ===== CSV EXPORT ===== */
+csvBtn.onclick = ()=>{
+  const rows=Object.values(repos).map(r=>[
+    r.name,r.state,r.missing.join('|'),r.stargazers_count,r.open_issues_count,r.forks
+  ].join(','));
+  const csv='name,status,missing,stars,issues,forks\n'+rows.join('\n');
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  const a=Object.assign(document.createElement('a'),{href:url,download:'repo_report.csv'});
+  a.click(); URL.revokeObjectURL(url);
+};
+
+/* ===== TOPICS STRING COPY ===== */
+topicsBtn.onclick = ()=>{
+  const str=Object.keys(repos)
+    .flatMap(n=>n.toLowerCase().split(/[\s_-]+/))
+    .filter((v,i,a)=>a.indexOf(v)===i)          // unique words
+    .join(' ')
+    .slice(0,MAX_TOPICS_LEN);
+  navigator.clipboard.writeText(str);
+  toast(`Copied (${str.length}/${MAX_TOPICS_LEN} chars):\n${str}`);
+};
+  </script>
+</body>
+</html>
