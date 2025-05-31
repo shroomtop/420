@@ -1,0 +1,19 @@
+# HTML/Frontend
+node_modules/
+dist/
+.env
+*.log
+.DS_Store
+Thumbs.db
+*.zip
+*.7z
+*.tar
+.cache/
+.vscode/
+.idea/
+*.swp
+# OS junk
+._*
+# Misc build outputs
+/build
+/out
