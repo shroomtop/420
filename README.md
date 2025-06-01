@@ -41,3 +41,12 @@ PRs are welcome for all enhancements, bugfixes, or features. See [CONTRIBUTING.m
 [![License](https://img.shields.io/github/license/shroomtop/420)](LICENSE)
 [![Deploy](https://img.shields.io/github/actions/workflow/status/shroomtop/420/pages.yml?label=deploy)](https://github.com/shroomtop/420/actions)
 [![View Site](https://img.shields.io/badge/view-live-blue?logo=github)](https://shroomtop.github.io/420/)
+
+<!-- SHROOMTOP420-MONETIZATION-BLOCK-START -->
+## 🚀 Support & Commercial Use
+
+- **Buy full-access or commercial license:** [Pay with Stripe](https://buy.stripe.com/aFa6oHeG74DQ8ZB3LubQY01)
+- **Donate or support ongoing dev:** [Buy Me A Coffee](https://buymeacoffee.com/shroomtop420)
+
+> *Commercial use requires license. See LICENSE for terms.*
+<!-- SHROOMTOP420-MONETIZATION-BLOCK-END -->
